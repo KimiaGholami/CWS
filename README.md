@@ -142,6 +142,56 @@ the way SparseGPT does. See `CWS.pdf` Sec. 2 for the full derivation,
 including the block-boundary lazy-update formula used to propagate a
 block's correction to not-yet-pruned columns.
 
+## Results
+
+These are the paper's own reported numbers (`CWS.pdf`, Tables 3/6/10):
+one-shot WikiText-2 perplexity across sparsity levels 30%–80%, against the
+Wanda/RIA/SparseGPT/AWP baselines (RIA and AWP aren't reimplemented in this
+repo — see [Limitations](#limitations) — so these are the paper's figures,
+not numbers reproduced by `scripts/run_sparsity_sweep.py` in this
+environment).
+
+**TinyLlama-1.1B** (dense PPL 7.8):
+
+| Sparsity | CWS | Wanda | RIA | SparseGPT | AWP |
+|---|---|---|---|---|---|
+| 30% | **8.13** | 8.15 | 8.14 | 8.37 | 8.16 |
+| 40% | **8.74** | 8.82 | 8.81 | 9.41 | 8.82 |
+| 50% | **10.20** | 10.73 | 10.77 | 11.83 | 10.73 |
+| 60% | **14.60** | 19.76 | 19.69 | 17.83 | 19.86 |
+| 70% | **34.40** | 94.92 | 96.21 | 62.38 | 95.80 |
+| 80% | **217.27** | 615 | 902 | 1,490 | 637 |
+
+**HGRN-1.3B** (dense PPL 11.8; gated recurrent SSM, no attention):
+
+| Sparsity | CWS | Wanda | RIA | SparseGPT | AWP |
+|---|---|---|---|---|---|
+| 30% | **12.14** | 31.64 | 25.6 | 15.02 | 21.7 |
+| 40% | **12.69** | 76.87 | 54.3 | 16.46 | 49.7 |
+| 50% | **13.88** | 350 | 348 | 17.4 | 426.2 |
+| 60% | **17.07** | 11,552 | 8,239 | 32.43 | 2,616 |
+| 70% | **31.11** | 20,592 | 17,457 | 115.4 | 4,440 |
+| 80% | **131.27** | 76,051 | 28,615 | 6,956 | 17,195 |
+
+**LLaMA-7B** (dense PPL 6.61):
+
+| Sparsity | CWS | Wanda | RIA | SparseGPT | AWP |
+|---|---|---|---|---|---|
+| 30% | 6.87 | 6.89 | 6.84 | 6.99 | **6.81** |
+| 40% | 7.30 | 7.40 | 7.30 | 7.76 | **7.19** |
+| 50% | 8.24 | 8.69 | 8.58 | 9.51 | **8.10** |
+| 60% | **10.96** | 14.40 | 14.22 | 15.64 | 11.33 |
+| 70% | **26.85** | 77.82 | 102.17 | 67.02 | 31.99 |
+| 80% | **245.5** | 1,647.4 | 2,084.1 | 2,071.2 | 211.1 |
+
+CWS's margin is largest on the sub-2B models, winning at every sparsity
+level tested on both TinyLlama-1.1B and HGRN-1.3B. At 7B scale the ordering
+partially inverts: AWP (an iterative gradient-based mask search) overtakes
+CWS on raw perplexity at low-to-mid sparsity, though the paper reports CWS
+still keeps the best zero-shot task accuracy at 80% sparsity despite AWP's
+lower perplexity there — and AWP costs substantially more compute (up to
+200 gradient steps per layer vs. CWS's single closed-form pass).
+
 ## Hardware notes
 
 This was developed and smoke-tested on an Apple Silicon Mac with no GPU;
