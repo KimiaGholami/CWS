@@ -11,3 +11,6 @@ checkpoints/
 *.safetensors
 *.bin
 *.pt
+CWS.pdf
+SparseGPT.pdf
+AWP.pdf
