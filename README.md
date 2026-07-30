@@ -14,8 +14,10 @@ step — pruning and correcting one layer at a time, sequentially through the
 network, so each layer's calibration reflects the already-pruned output of
 every prior layer.
 
-The method and its evaluation are described in `CWS.pdf` (submitted to
-NeurIPS 2026); `SparseGPT.pdf` is the baseline method it builds on.
+The method and its evaluation are described in the CWS paper, currently
+under anonymous review for NeurIPS 2026 (not included in this repo — see
+[Limitations](#limitations)); SparseGPT (Frantar & Alistarh, 2023) is the
+baseline method it builds on.
 
 ## What's in this repo
 
@@ -123,37 +125,6 @@ layer as one block, `blocksize=None` in `cws_prune_layer`) — numerically
 stable on the 1B-parameter model but prone to Cholesky failures on wider
 layers (LLaMA-7B, HGRN-1.3B), which is why the paper defaults to `B=128`.
 
-## PPL comparison plots
-
-`cws/plotting.py` renders sparsity-vs-perplexity plots (log-scale PPL,
-one line per method, dense baseline as a dashed reference) from any sweep
-CSV shaped like `[model, method, sparsity, wikitext2_ppl]`. Pass `--plot`
-to `run_sparsity_sweep.py` to generate one figure per model automatically
-once you run the sweep on your own hardware:
-
-```bash
-python scripts/run_sparsity_sweep.py --models tinyllama-1.1b hgrn-1.3b llama-7b \
-    --methods cws sparsegpt wanda magnitude --device cuda \
-    --out results/sweep.csv --plot --plot-dir results/figures
-```
-
-No live sweep has been run in this environment yet (no GPU here, see
-[Hardware](#hardware-notes)). In the meantime, `results/paper_reported_sweep.csv`
-holds the exact 30-80% sweep numbers CWS.pdf reports for CWS, Wanda, RIA,
-SparseGPT, and AWP (Tables 3, 6, and 10, cross-checked against the PDF's
-text layer, not OCR), and `results/figures/paper_reported/*.png` are that
-data plotted with the same `plot_sweep_csv` utility — i.e. a reproduction
-of the paper's Figures 1-3, not a measurement taken by this codebase:
-
-| TinyLlama-1.1B | HGRN-1.3B | LLaMA-7B |
-|---|---|---|
-| ![TinyLlama-1.1B sparsity sweep](results/figures/paper_reported/tinyllama-1.1b_sparsity_sweep.png) | ![HGRN-1.3B sparsity sweep](results/figures/paper_reported/hgrn-1.3b_sparsity_sweep.png) | ![LLaMA-7B sparsity sweep](results/figures/paper_reported/llama-7b_sparsity_sweep.png) |
-
-Note RIA and AWP appear in these paper-sourced plots even though
-`cws/baselines.py` doesn't implement them (see [Limitations](#limitations))
-— once real sweeps are run through this pipeline, `results/sweep.csv` will
-only have rows for whichever `--methods` you actually pass.
-
 ## Method summary
 
 For output row `i` and pruned index set `S`, the reconstruction objective is
@@ -171,9 +142,89 @@ the marginal cost `δ(j | S') = r_j² / d_j`, where `r_j` and `d_j` are the
 output row can choose a different elimination order, CWS keeps a private
 local inverse-Hessian copy per row within each column block (`B=128` by
 default), rather than reusing one shared elimination sequence for every row
-the way SparseGPT does. See `CWS.pdf` Sec. 2 for the full derivation,
+the way SparseGPT does. See the CWS paper, Sec. 2, for the full derivation,
 including the block-boundary lazy-update formula used to propagate a
 block's correction to not-yet-pruned columns.
+
+## Results
+
+These are the paper's own reported numbers: one-shot WikiText-2 perplexity
+across sparsity levels 30%–80%, against the Wanda/RIA/SparseGPT/AWP
+baselines (RIA and AWP aren't reimplemented in this repo — see
+[Limitations](#limitations) — so these are the paper's figures, not numbers
+reproduced by `scripts/run_sparsity_sweep.py` in this environment).
+
+**TinyLlama-1.1B** (dense PPL 7.8):
+
+| Sparsity | CWS | Wanda | RIA | SparseGPT | AWP |
+|---|---|---|---|---|---|
+| 30% | **8.13** | 8.15 | 8.14 | 8.37 | 8.16 |
+| 40% | **8.74** | 8.82 | 8.81 | 9.41 | 8.82 |
+| 50% | **10.20** | 10.73 | 10.77 | 11.83 | 10.73 |
+| 60% | **14.60** | 19.76 | 19.69 | 17.83 | 19.86 |
+| 70% | **34.40** | 94.92 | 96.21 | 62.38 | 95.80 |
+| 80% | **217.27** | 615 | 902 | 1,490 | 637 |
+
+**HGRN-1.3B** (dense PPL 11.8; gated recurrent SSM, no attention):
+
+| Sparsity | CWS | Wanda | RIA | SparseGPT | AWP |
+|---|---|---|---|---|---|
+| 30% | **12.14** | 31.64 | 25.6 | 15.02 | 21.7 |
+| 40% | **12.69** | 76.87 | 54.3 | 16.46 | 49.7 |
+| 50% | **13.88** | 350 | 348 | 17.4 | 426.2 |
+| 60% | **17.07** | 11,552 | 8,239 | 32.43 | 2,616 |
+| 70% | **31.11** | 20,592 | 17,457 | 115.4 | 4,440 |
+| 80% | **131.27** | 76,051 | 28,615 | 6,956 | 17,195 |
+
+**LLaMA-7B** (dense PPL 6.61):
+
+| Sparsity | CWS | Wanda | RIA | SparseGPT | AWP |
+|---|---|---|---|---|---|
+| 30% | 6.87 | 6.89 | 6.84 | 6.99 | **6.81** |
+| 40% | 7.30 | 7.40 | 7.30 | 7.76 | **7.19** |
+| 50% | 8.24 | 8.69 | 8.58 | 9.51 | **8.10** |
+| 60% | **10.96** | 14.40 | 14.22 | 15.64 | 11.33 |
+| 70% | **26.85** | 77.82 | 102.17 | 67.02 | 31.99 |
+| 80% | **245.5** | 1,647.4 | 2,084.1 | 2,071.2 | 211.1 |
+
+CWS's margin is largest on the sub-2B models, winning at every sparsity
+level tested on both TinyLlama-1.1B and HGRN-1.3B. At 7B scale the ordering
+partially inverts: AWP (an iterative gradient-based mask search) overtakes
+CWS on raw perplexity at low-to-mid sparsity, though the paper reports CWS
+still keeps the best zero-shot task accuracy at 80% sparsity despite AWP's
+lower perplexity there — and AWP costs substantially more compute (up to
+200 gradient steps per layer vs. CWS's single closed-form pass).
+
+## PPL comparison plots
+
+`cws/plotting.py` renders sparsity-vs-perplexity plots (log-scale PPL,
+one line per method, dense baseline as a dashed reference) from any sweep
+CSV shaped like `[model, method, sparsity, wikitext2_ppl]`. Pass `--plot`
+to `run_sparsity_sweep.py` to generate one figure per model automatically
+once you run the sweep on your own hardware:
+
+```bash
+python scripts/run_sparsity_sweep.py --models tinyllama-1.1b hgrn-1.3b llama-7b \
+    --methods cws sparsegpt wanda magnitude --device cuda \
+    --out results/sweep.csv --plot --plot-dir results/figures
+```
+
+No live sweep has been run in this environment yet (no GPU here, see
+[Hardware](#hardware-notes)). In the meantime, `results/paper_reported_sweep.csv`
+holds the exact 30–80% sweep numbers from the table above (cross-checked
+against the paper's PDF text layer, not OCR), and
+`results/figures/paper_reported/*.png` are that same data plotted with
+`plot_sweep_csv` — a reproduction of the paper's sparsity-vs-perplexity
+figures, not a measurement taken by this codebase:
+
+| TinyLlama-1.1B | HGRN-1.3B | LLaMA-7B |
+|---|---|---|
+| ![TinyLlama-1.1B sparsity sweep](results/figures/paper_reported/tinyllama-1.1b_sparsity_sweep.png) | ![HGRN-1.3B sparsity sweep](results/figures/paper_reported/hgrn-1.3b_sparsity_sweep.png) | ![LLaMA-7B sparsity sweep](results/figures/paper_reported/llama-7b_sparsity_sweep.png) |
+
+Note RIA and AWP appear in these paper-sourced plots even though
+`cws/baselines.py` doesn't implement them (see [Limitations](#limitations))
+— once real sweeps are run through this pipeline, `results/sweep.csv` will
+only have rows for whichever `--methods` you actually pass.
 
 ## Hardware notes
 
@@ -190,13 +241,18 @@ model download.
 
 ## Limitations
 
+- **The paper PDF is intentionally not included in this repo.** It's an
+  anonymous submission under review for NeurIPS 2026 ("do not distribute");
+  hosting it in a public repo tied to a real GitHub identity risks
+  compromising double-blind review, so it's kept local and gitignored
+  instead.
 - **RIA and AWP baselines are not implemented.** The paper compares CWS
   against Wanda, RIA, SparseGPT, and AWP; this repo implements Magnitude,
   Wanda, and SparseGPT faithfully but omits RIA (Zhang et al., 2024) and AWP
   (Liu et al., 2025) rather than risk a subtly incorrect reimplementation.
-- **CPU inference benchmarks (AVX-512 sparse kernels, Section 4/Table 12 of
-  the paper) are not included.** This repo covers the pruning method and
-  its accuracy evaluation only.
+- **CPU inference benchmarks (AVX-512 sparse kernels, Section 4 of the
+  paper) are not included.** This repo covers the pruning method and its
+  accuracy evaluation only.
 - Model hub ids above are best-effort aliases for the checkpoints named in
   the paper; if a tag has moved, pass the correct HF hub id directly via
   `--model`.
