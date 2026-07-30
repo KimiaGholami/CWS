@@ -1,0 +1,8 @@
+torch>=2.1
+transformers>=4.40
+datasets>=2.18
+lm-eval>=0.4.2
+accelerate>=0.30
+sentencepiece
+# Required only for HGRN-1.3B (registers its architecture with transformers):
+# flash-linear-attention
