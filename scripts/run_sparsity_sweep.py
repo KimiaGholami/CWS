@@ -41,6 +41,10 @@ def parse_args():
     p.add_argument("--device", default="cpu")
     p.add_argument("--dtype", default="bfloat16", choices=["bfloat16", "float32"])
     p.add_argument("--out", default="results/sweep.csv")
+    p.add_argument(
+        "--plot", action="store_true", help="also render PPL-vs-sparsity plots per model"
+    )
+    p.add_argument("--plot-dir", default="results/figures")
     return p.parse_args()
 
 
@@ -107,6 +111,12 @@ def main():
         writer.writeheader()
         writer.writerows(rows)
     print(f"Wrote {len(rows)} rows to {args.out}")
+
+    if args.plot:
+        from cws.plotting import plot_sweep_csv
+
+        out_paths = plot_sweep_csv(args.out, args.plot_dir)
+        print(f"Wrote {len(out_paths)} plot(s) to {args.plot_dir}")
 
 
 if __name__ == "__main__":

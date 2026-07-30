@@ -43,6 +43,8 @@ NeurIPS 2026); `SparseGPT.pdf` is the baseline method it builds on.
 - **`cws/eval_ppl.py`**, **`cws/eval_tasks.py`** — WikiText-2 perplexity and
   a zero-shot `lm-evaluation-harness` wrapper (ARC-Easy, ARC-Challenge,
   HellaSwag, PIQA, WinoGrande, LAMBADA).
+- **`cws/plotting.py`** — PPL-vs-sparsity plotting utility (see
+  [PPL comparison plots](#ppl-comparison-plots)).
 - **`scripts/prune.py`** — one-shot CLI: load a model, prune it, evaluate
   PPL (and optionally the full benchmark suite).
 - **`scripts/run_sparsity_sweep.py`** — sweeps sparsity 30%–80% across
@@ -120,6 +122,37 @@ python scripts/run_full_benchmark.py \
 layer as one block, `blocksize=None` in `cws_prune_layer`) — numerically
 stable on the 1B-parameter model but prone to Cholesky failures on wider
 layers (LLaMA-7B, HGRN-1.3B), which is why the paper defaults to `B=128`.
+
+## PPL comparison plots
+
+`cws/plotting.py` renders sparsity-vs-perplexity plots (log-scale PPL,
+one line per method, dense baseline as a dashed reference) from any sweep
+CSV shaped like `[model, method, sparsity, wikitext2_ppl]`. Pass `--plot`
+to `run_sparsity_sweep.py` to generate one figure per model automatically
+once you run the sweep on your own hardware:
+
+```bash
+python scripts/run_sparsity_sweep.py --models tinyllama-1.1b hgrn-1.3b llama-7b \
+    --methods cws sparsegpt wanda magnitude --device cuda \
+    --out results/sweep.csv --plot --plot-dir results/figures
+```
+
+No live sweep has been run in this environment yet (no GPU here, see
+[Hardware](#hardware-notes)). In the meantime, `results/paper_reported_sweep.csv`
+holds the exact 30-80% sweep numbers CWS.pdf reports for CWS, Wanda, RIA,
+SparseGPT, and AWP (Tables 3, 6, and 10, cross-checked against the PDF's
+text layer, not OCR), and `results/figures/paper_reported/*.png` are that
+data plotted with the same `plot_sweep_csv` utility — i.e. a reproduction
+of the paper's Figures 1-3, not a measurement taken by this codebase:
+
+| TinyLlama-1.1B | HGRN-1.3B | LLaMA-7B |
+|---|---|---|
+| ![TinyLlama-1.1B sparsity sweep](results/figures/paper_reported/tinyllama-1.1b_sparsity_sweep.png) | ![HGRN-1.3B sparsity sweep](results/figures/paper_reported/hgrn-1.3b_sparsity_sweep.png) | ![LLaMA-7B sparsity sweep](results/figures/paper_reported/llama-7b_sparsity_sweep.png) |
+
+Note RIA and AWP appear in these paper-sourced plots even though
+`cws/baselines.py` doesn't implement them (see [Limitations](#limitations))
+— once real sweeps are run through this pipeline, `results/sweep.csv` will
+only have rows for whichever `--methods` you actually pass.
 
 ## Method summary
 
